@@ -1,0 +1,699 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: food-api — Recipe book, meal planning, and shopping list API
+
+Transform:
+  - AWS::Serverless-2016-10-31
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [prod, test]
+  SmsApiKey:
+    Type: String
+    Description: API key for sms-queue-api
+    NoEcho: true
+
+Mappings:
+  EnvironmentMap:
+    prod:
+      certificateEdge: adce1a21-90b4-4120-8548-111215e582f0
+      certificateRegional: 5d4db894-c9fc-42ca-8f80-3c5da6c1678e
+      corsDomain: https://food.dbowland.com
+      domain: food-api.dbowland.com
+      logStreamFunction: log-subscriber
+      photoBucket: food-api-photos
+      table: food-api
+      smsApiUrl: https://sms-queue-api.dbowland.com/v1
+      zoneId: Z072422417XWM8PIXXSFA
+    test:
+      certificateEdge: 6a48cba7-feb9-4de5-8cbf-d383140fcdef
+      certificateRegional: 14a32175-0c26-4768-b71f-3fa611b8f5a2
+      corsDomain: https://food.bowland.link
+      domain: food-api.bowland.link
+      logStreamFunction: log-subscriber-test
+      photoBucket: food-api-photos-test
+      table: food-api-test
+      smsApiUrl: https://sms-queue-api.bowland.link/v1
+      zoneId: Z01312547RGU1BYKIJXY
+
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Architectures: [x86_64]
+    Tracing: Active
+    Environment:
+      Variables:
+        NODE_OPTIONS: '--disable-warning DEP0040'
+    Tags:
+      'created-by': 'food-api'
+      'created-for': 'food'
+      'environment': !Ref Environment
+
+Resources:
+  # API Gateway
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+              audience: [!Ref UserPoolClient]
+        DefaultAuthorizer: CognitoAuthorizer
+      CorsConfiguration:
+        AllowCredentials: true
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+          - X-Amz-Date
+          - X-Amz-Security-Token
+          - X-Api-Key
+        AllowMethods: [DELETE, GET, OPTIONS, PATCH, POST, PUT]
+        AllowOrigins:
+          - !FindInMap [EnvironmentMap, !Ref Environment, corsDomain]
+      Domain:
+        BasePath: [/v1]
+        CertificateArn: !Sub
+          - 'arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/${Cert}'
+          - Cert: !FindInMap [EnvironmentMap, !Ref Environment, certificateRegional]
+        DomainName: !FindInMap [EnvironmentMap, !Ref Environment, domain]
+        EndpointConfiguration: REGIONAL
+      FailOnWarnings: true
+      StageName: v1
+
+  HttpRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !Sub '${HttpApi.DomainName.RegionalDomainName}'
+        HostedZoneId: !Sub '${HttpApi.DomainName.RegionalHostedZoneId}'
+      HostedZoneId: !FindInMap [EnvironmentMap, !Ref Environment, zoneId]
+      Name: !FindInMap [EnvironmentMap, !Ref Environment, domain]
+      Type: A
+
+  # Cognito — Phone/OTP authentication
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'food-${Environment}'
+      UsernameAttributes: [phone_number]
+      AutoVerifiedAttributes: [phone_number]
+      MfaConfiguration: 'OFF'
+      LambdaConfig:
+        DefineAuthChallenge: !GetAtt DefineAuthChallengeFunction.Arn
+        CreateAuthChallenge: !GetAtt CreateAuthChallengeFunction.Arn
+        VerifyAuthChallengeResponse: !GetAtt VerifyAuthChallengeFunction.Arn
+      UserPoolTags:
+        'created-by': 'food-api'
+        'created-for': 'food'
+        'environment': !Ref Environment
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub 'food-${Environment}'
+      ExplicitAuthFlows:
+        - ALLOW_CUSTOM_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AllowedOAuthFlowsUserPoolClient: false
+
+  # Cognito Lambda Triggers
+
+  DefineAuthChallengeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/auth-triggers/define-auth-challenge.handler
+      MemorySize: 256
+      Description: food-api Cognito define auth challenge trigger
+      Policies: [AWSLambdaBasicExecutionRole]
+      Timeout: 5
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/auth-triggers/define-auth-challenge.ts]
+
+  DefineAuthChallengeFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt DefineAuthChallengeFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  CreateAuthChallengeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/auth-triggers/create-auth-challenge.handler
+      MemorySize: 256
+      Description: food-api Cognito create auth challenge trigger (sends OTP via SMS)
+      Policies: [AWSLambdaBasicExecutionRole]
+      Environment:
+        Variables:
+          SMS_API_KEY: !Ref SmsApiKey
+          SMS_API_URL: !FindInMap [EnvironmentMap, !Ref Environment, smsApiUrl]
+      Timeout: 15
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/auth-triggers/create-auth-challenge.ts]
+
+  CreateAuthChallengeFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt CreateAuthChallengeFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  VerifyAuthChallengeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/auth-triggers/verify-auth-challenge.handler
+      MemorySize: 256
+      Description: food-api Cognito verify auth challenge trigger
+      Policies: [AWSLambdaBasicExecutionRole]
+      Timeout: 5
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/auth-triggers/verify-auth-challenge.ts]
+
+  VerifyAuthChallengeFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt VerifyAuthChallengeFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  # Lambda — Ingredients
+
+  IngredientsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/ingredients.handler
+      MemorySize: 512
+      Description: food-api ingredients CRUD
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FoodTable
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref FoodTable
+      Events:
+        GetIngredients:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /ingredients
+            Method: get
+            Auth:
+              Authorizer: NONE
+        PostIngredient:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /ingredients
+            Method: post
+        GetIngredientById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /ingredients/{id}
+            Method: get
+            Auth:
+              Authorizer: NONE
+        PutIngredient:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /ingredients/{id}
+            Method: put
+      Timeout: 15
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/handlers/ingredients.ts]
+
+  IngredientsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${IngredientsFunction}
+      RetentionInDays: 30
+
+  IngredientsLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Fn}'
+        - Fn: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref IngredientsLogGroup
+
+  # Lambda — Recipes
+
+  RecipesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/recipes.handler
+      MemorySize: 512
+      Description: food-api recipes CRUD
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FoodTable
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref FoodTable
+      Events:
+        GetRecipes:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /recipes
+            Method: get
+            Auth:
+              Authorizer: NONE
+        PostRecipe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /recipes
+            Method: post
+        GetMyRecipes:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/me/recipes
+            Method: get
+        GetRecipeById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /recipes/{id}
+            Method: get
+            Auth:
+              Authorizer: NONE
+        PutRecipe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /recipes/{id}
+            Method: put
+        DeleteRecipe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /recipes/{id}
+            Method: delete
+      Timeout: 15
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/handlers/recipes.ts]
+
+  RecipesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${RecipesFunction}
+      RetentionInDays: 30
+
+  RecipesLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Fn}'
+        - Fn: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref RecipesLogGroup
+
+  # Lambda — Photos
+
+  PhotosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/photos.handler
+      MemorySize: 256
+      Description: food-api S3 presigned upload URL
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3WritePolicy:
+            BucketName: !Ref PhotoBucket
+      Environment:
+        Variables:
+          PHOTO_BUCKET_NAME: !Ref PhotoBucket
+          PHOTO_PRESIGNED_URL_EXPIRE_SECONDS: '3600'
+      Events:
+        PostPhoto:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /photos
+            Method: post
+      Timeout: 10
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/handlers/photos.ts]
+
+  PhotosLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PhotosFunction}
+      RetentionInDays: 30
+
+  PhotosLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Fn}'
+        - Fn: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PhotosLogGroup
+
+  # Lambda — Users
+
+  UsersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/users.handler
+      MemorySize: 512
+      Description: food-api user profile and favorites
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FoodTable
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref FoodTable
+      Events:
+        GetMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/me
+            Method: get
+        PutMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/me
+            Method: put
+        GetFavorites:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/me/favorites
+            Method: get
+        PutFavorite:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/me/favorites/{recipeId}
+            Method: put
+        DeleteFavorite:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/me/favorites/{recipeId}
+            Method: delete
+      Timeout: 15
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/handlers/users.ts]
+
+  UsersLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${UsersFunction}
+      RetentionInDays: 30
+
+  UsersLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Fn}'
+        - Fn: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref UsersLogGroup
+
+  # Lambda — Meal Plans
+
+  MealPlansFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/meal-plans.handler
+      MemorySize: 512
+      Description: food-api meal plans CRUD with sharing
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FoodTable
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref FoodTable
+      Events:
+        GetMealPlans:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meal-plans
+            Method: get
+        PostMealPlan:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meal-plans
+            Method: post
+        GetMealPlanById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meal-plans/{id}
+            Method: get
+        PutMealPlan:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meal-plans/{id}
+            Method: put
+        DeleteMealPlan:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meal-plans/{id}
+            Method: delete
+        PutMealPlanShare:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meal-plans/{id}/shares/{userId}
+            Method: put
+        DeleteMealPlanShare:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meal-plans/{id}/shares/{userId}
+            Method: delete
+      Timeout: 15
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/handlers/meal-plans.ts]
+
+  MealPlansLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${MealPlansFunction}
+      RetentionInDays: 30
+
+  MealPlansLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Fn}'
+        - Fn: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref MealPlansLogGroup
+
+  # Lambda — Shopping Lists
+
+  ShoppingListsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/shopping-lists.handler
+      MemorySize: 512
+      Description: food-api shopping lists CRUD with sharing and item checking
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FoodTable
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref FoodTable
+      Events:
+        GetShoppingLists:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists
+            Method: get
+        PostShoppingList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists
+            Method: post
+        GetShoppingListById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists/{id}
+            Method: get
+        PutShoppingList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists/{id}
+            Method: put
+        DeleteShoppingList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists/{id}
+            Method: delete
+        CheckItem:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists/{id}/items/{itemId}/check
+            Method: put
+        UncheckItem:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists/{id}/items/{itemId}/check
+            Method: delete
+        PutShoppingListShare:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists/{id}/shares/{userId}
+            Method: put
+        DeleteShoppingListShare:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /shopping-lists/{id}/shares/{userId}
+            Method: delete
+      Timeout: 30
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: 'es2024'
+        Sourcemap: true
+        EntryPoints: [src/handlers/shopping-lists.ts]
+
+  ShoppingListsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ShoppingListsFunction}
+      RetentionInDays: 30
+
+  ShoppingListsLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Fn}'
+        - Fn: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref ShoppingListsLogGroup
+
+  # DynamoDB
+
+  FoodTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - { AttributeName: PK, AttributeType: S }
+        - { AttributeName: SK, AttributeType: S }
+        - { AttributeName: ownerUserId, AttributeType: S }
+        - { AttributeName: recipeStatus, AttributeType: S }
+        - { AttributeName: entityType, AttributeType: S }
+        - { AttributeName: createdAt, AttributeType: N }
+      BillingMode: PAY_PER_REQUEST
+      GlobalSecondaryIndexes:
+        - IndexName: owner-index
+          KeySchema:
+            - { AttributeName: ownerUserId, KeyType: HASH }
+            - { AttributeName: createdAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: status-index
+          KeySchema:
+            - { AttributeName: recipeStatus, KeyType: HASH }
+            - { AttributeName: createdAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: type-index
+          KeySchema:
+            - { AttributeName: entityType, KeyType: HASH }
+            - { AttributeName: createdAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      KeySchema:
+        - { AttributeName: PK, KeyType: HASH }
+        - { AttributeName: SK, KeyType: RANGE }
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, table]
+      Tags:
+        - { Key: 'created-by', Value: 'food-api' }
+        - { Key: 'created-for', Value: 'food' }
+        - { Key: 'environment', Value: !Ref Environment }
+
+  # S3 — Photo storage
+
+  PhotoBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !FindInMap [EnvironmentMap, !Ref Environment, photoBucket]
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT]
+            AllowedOrigins:
+              - !FindInMap [EnvironmentMap, !Ref Environment, corsDomain]
+            MaxAge: 3600
+      Tags:
+        - { Key: 'created-by', Value: 'food-api' }
+        - { Key: 'created-for', Value: 'food' }
+        - { Key: 'environment', Value: !Ref Environment }
