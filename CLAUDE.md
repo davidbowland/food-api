@@ -1,6 +1,8 @@
 # food-api
 
-Recipe book, meal planning, and shopping list API.
+## General
+
+**Always commit changes** after completing work unless explicitly told not to.
 
 ## Testing Standards
 

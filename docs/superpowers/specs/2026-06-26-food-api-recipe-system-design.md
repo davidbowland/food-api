@@ -21,6 +21,7 @@ A backend API for a personal recipe book and meal planner. Recipes are a public 
 **Lambda organization (Option B — one function per resource type):** Each resource group is one Lambda function with internal routing on `httpMethod + path`. ~8 functions total vs 40+ in the per-verb-per-path pattern. esbuild tree-shaking keeps bundles small regardless.
 
 **Domains:**
+
 - Prod: `food-api.dbowland.com`
 - Test: `food-api.bowland.link`
 - CORS origins: `https://food.dbowland.com` (prod), `https://food.bowland.link` (test)
@@ -37,14 +38,14 @@ A backend API for a personal recipe book and meal planner. Recipes are a public 
 
 ### DynamoDB Single-Table Key Design
 
-| Entity | PK | SK |
-|---|---|---|
-| User profile | `USER#{userId}` | `PROFILE` |
-| User favorite | `USER#{userId}` | `FAVORITE#{recipeId}` |
-| Ingredient | `INGREDIENT#{ingredientId}` | `METADATA` |
-| Recipe | `RECIPE#{recipeId}` | `METADATA` |
-| Meal plan | `PLAN#{planId}` | `METADATA` |
-| Shopping list | `LIST#{listId}` | `METADATA` |
+| Entity        | PK                          | SK                    |
+| ------------- | --------------------------- | --------------------- |
+| User profile  | `USER#{userId}`             | `PROFILE`             |
+| User favorite | `USER#{userId}`             | `FAVORITE#{recipeId}` |
+| Ingredient    | `INGREDIENT#{ingredientId}` | `METADATA`            |
+| Recipe        | `RECIPE#{recipeId}`         | `METADATA`            |
+| Meal plan     | `PLAN#{planId}`             | `METADATA`            |
+| Shopping list | `LIST#{listId}`             | `METADATA`            |
 
 **GSI:** `status-index` on recipes — PK=`status`, SK=`createdAt` — supports querying all published recipes without a scan.
 
@@ -53,6 +54,7 @@ A backend API for a personal recipe book and meal planner. Recipes are a public 
 ### Entities
 
 **Ingredient**
+
 ```ts
 {
   ingredientId: string
@@ -64,6 +66,7 @@ A backend API for a personal recipe book and meal planner. Recipes are a public 
 ```
 
 **Recipe**
+
 ```ts
 {
   recipeId: string
@@ -80,12 +83,14 @@ A backend API for a personal recipe book and meal planner. Recipes are a public 
   updatedAt: number
 }
 ```
+
 Recipes default to `draft` on creation. Status promotion (draft → pending → published) is a future admin/vetting workflow; endpoints for it are not built in Phase 1.
 
 **User**
+
 ```ts
 {
-  userId: string             // Cognito sub
+  userId: string // Cognito sub
   phone: string
   displayName: string
   createdAt: number
@@ -95,19 +100,29 @@ Recipes default to `draft` on creation. Status promotion (draft → pending → 
 ```
 
 **MealPlan**
+
 ```ts
 {
   planId: string
   ownerUserId: string
   title: string
-  items: { recipeId: string; servings: number }[]
-  shares: { userId: string; role: 'viewer' | 'editor' }[]
+  items: {
+    recipeId: string
+    servings: number
+  }
+  ;[]
+  shares: {
+    userId: string
+    role: 'viewer' | 'editor'
+  }
+  ;[]
   createdAt: number
   updatedAt: number
 }
 ```
 
 **ShoppingList**
+
 ```ts
 {
   listId: string
@@ -173,60 +188,66 @@ An ingredient's `allowedUnitTypes` constrains which units are valid when authori
 All endpoints require Cognito JWT in `Authorization` header except where marked **public**.
 
 ### Ingredients — `IngredientsFunction`
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| GET | `/ingredients` | public | List all ingredients |
-| POST | `/ingredients` | required | Create ingredient (admin gate added later) |
-| GET | `/ingredients/{id}` | public | Get single ingredient |
-| PUT | `/ingredients/{id}` | required | Update ingredient |
+
+| Method | Path                | Auth     | Notes                                      |
+| ------ | ------------------- | -------- | ------------------------------------------ |
+| GET    | `/ingredients`      | public   | List all ingredients                       |
+| POST   | `/ingredients`      | required | Create ingredient (admin gate added later) |
+| GET    | `/ingredients/{id}` | public   | Get single ingredient                      |
+| PUT    | `/ingredients/{id}` | required | Update ingredient                          |
 
 ### Recipes — `RecipesFunction`
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| GET | `/recipes` | public | List published recipes |
-| GET | `/users/me/recipes` | required | List own recipes (all statuses) |
-| POST | `/recipes` | required | Create recipe (status=draft) |
-| GET | `/recipes/{id}` | conditional | Public if published; owner-only if draft |
-| PUT | `/recipes/{id}` | required | Update (owner only) |
-| DELETE | `/recipes/{id}` | required | Delete (owner only) |
+
+| Method | Path                | Auth        | Notes                                    |
+| ------ | ------------------- | ----------- | ---------------------------------------- |
+| GET    | `/recipes`          | public      | List published recipes                   |
+| GET    | `/users/me/recipes` | required    | List own recipes (all statuses)          |
+| POST   | `/recipes`          | required    | Create recipe (status=draft)             |
+| GET    | `/recipes/{id}`     | conditional | Public if published; owner-only if draft |
+| PUT    | `/recipes/{id}`     | required    | Update (owner only)                      |
+| DELETE | `/recipes/{id}`     | required    | Delete (owner only)                      |
 
 ### Photos — `PhotosFunction`
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| POST | `/photos` | required | Returns presigned S3 upload URL |
+
+| Method | Path      | Auth     | Notes                           |
+| ------ | --------- | -------- | ------------------------------- |
+| POST   | `/photos` | required | Returns presigned S3 upload URL |
 
 ### Users — `UsersFunction`
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| GET | `/users/me` | required | Get own profile |
-| PUT | `/users/me` | required | Update display name |
-| GET | `/users/me/favorites` | required | List favorited recipes |
-| PUT | `/users/me/favorites/{recipeId}` | required | Add favorite |
-| DELETE | `/users/me/favorites/{recipeId}` | required | Remove favorite |
+
+| Method | Path                             | Auth     | Notes                  |
+| ------ | -------------------------------- | -------- | ---------------------- |
+| GET    | `/users/me`                      | required | Get own profile        |
+| PUT    | `/users/me`                      | required | Update display name    |
+| GET    | `/users/me/favorites`            | required | List favorited recipes |
+| PUT    | `/users/me/favorites/{recipeId}` | required | Add favorite           |
+| DELETE | `/users/me/favorites/{recipeId}` | required | Remove favorite        |
 
 ### Meal Plans — `MealPlansFunction`
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| GET | `/meal-plans` | required | Plans owned by or shared with requester |
-| POST | `/meal-plans` | required | Create plan |
-| GET | `/meal-plans/{id}` | required | Owner or shared user |
-| PUT | `/meal-plans/{id}` | required | Owner or editor |
-| DELETE | `/meal-plans/{id}` | required | Owner only |
-| PUT | `/meal-plans/{id}/shares/{userId}` | required | Add/update share |
-| DELETE | `/meal-plans/{id}/shares/{userId}` | required | Remove share |
+
+| Method | Path                               | Auth     | Notes                                   |
+| ------ | ---------------------------------- | -------- | --------------------------------------- |
+| GET    | `/meal-plans`                      | required | Plans owned by or shared with requester |
+| POST   | `/meal-plans`                      | required | Create plan                             |
+| GET    | `/meal-plans/{id}`                 | required | Owner or shared user                    |
+| PUT    | `/meal-plans/{id}`                 | required | Owner or editor                         |
+| DELETE | `/meal-plans/{id}`                 | required | Owner only                              |
+| PUT    | `/meal-plans/{id}/shares/{userId}` | required | Add/update share                        |
+| DELETE | `/meal-plans/{id}/shares/{userId}` | required | Remove share                            |
 
 ### Shopping Lists — `ShoppingListsFunction`
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| GET | `/shopping-lists` | required | Lists owned by or shared with requester |
-| POST | `/shopping-lists` | required | Create list; optionally pass `generatedFromPlanId` to auto-generate items |
-| GET | `/shopping-lists/{id}` | required | Owner or shared user |
-| PUT | `/shopping-lists/{id}` | required | Owner or editor |
-| DELETE | `/shopping-lists/{id}` | required | Owner only |
-| PUT | `/shopping-lists/{id}/items/{itemId}/check` | required | Mark item picked up (any user with access) |
-| DELETE | `/shopping-lists/{id}/items/{itemId}/check` | required | Uncheck item |
-| PUT | `/shopping-lists/{id}/shares/{userId}` | required | Add/update share |
-| DELETE | `/shopping-lists/{id}/shares/{userId}` | required | Remove share |
+
+| Method | Path                                        | Auth     | Notes                                                                     |
+| ------ | ------------------------------------------- | -------- | ------------------------------------------------------------------------- |
+| GET    | `/shopping-lists`                           | required | Lists owned by or shared with requester                                   |
+| POST   | `/shopping-lists`                           | required | Create list; optionally pass `generatedFromPlanId` to auto-generate items |
+| GET    | `/shopping-lists/{id}`                      | required | Owner or shared user                                                      |
+| PUT    | `/shopping-lists/{id}`                      | required | Owner or editor                                                           |
+| DELETE | `/shopping-lists/{id}`                      | required | Owner only                                                                |
+| PUT    | `/shopping-lists/{id}/items/{itemId}/check` | required | Mark item picked up (any user with access)                                |
+| DELETE | `/shopping-lists/{id}/items/{itemId}/check` | required | Uncheck item                                                              |
+| PUT    | `/shopping-lists/{id}/shares/{userId}`      | required | Add/update share                                                          |
+| DELETE | `/shopping-lists/{id}/shares/{userId}`      | required | Remove share                                                              |
 
 ---
 
@@ -299,6 +320,7 @@ Structured JSON error body: `{ message: string }` on all error responses.
 ## Testing
 
 **Rules:**
+
 - Functionality only — no CSS, no presentation layer tests
 - `beforeAll` to set shared mock state; `mockReturnValueOnce` for per-test deviations from the default
 - No `if` statements, no live `Date.now()`, no live `Math.random()` in test code
@@ -327,14 +349,16 @@ it('sets createdAt', () => {
 
 ## Future: Phase 2 — Food Tracking System
 
-*Captured here as a starting point. Not in scope for Phase 1.*
+_Captured here as a starting point. Not in scope for Phase 1._
 
 ### Core idea
+
 Users log what they eat — servings of a recipe, a specific restaurant item, or free-form custom entry. The app tracks calories and macros over time. Eventually: upload a photo, AI identifies and quantifies what's in it.
 
 ### Entities (Phase 2)
 
 **FoodLog entry**
+
 ```ts
 {
   logId: string
@@ -349,36 +373,47 @@ Users log what they eat — servings of a recipe, a specific restaurant item, or
 ```
 
 **RestaurantItem** — a public catalog (like recipes but for restaurant/packaged foods)
+
 ```ts
 {
   restaurantItemId: string
-  brand: string             // e.g. "Taco Bell"
-  name: string              // e.g. "Soft Taco"
+  brand: string // e.g. "Taco Bell"
+  name: string // e.g. "Soft Taco"
   servingSize: number
   servingUnit: string
-  nutrition: { calories: number; protein: number; carbs: number; fat: number }
+  nutrition: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  }
   source: 'manual' | 'usda' | 'ai'
 }
 ```
 
 ### Nutrition flow
+
 - Ingredient gains `nutritionPer100g` (stub already reserved in Phase 1 schema)
 - Recipe nutrition per serving = sum of (ingredient quantity × nutrition density) ÷ servings
 - FoodLog entry nutrition = sum across all log entries for the day
 
 ### Photo-based logging
+
 1. User uploads a photo
 2. AI (Claude vision or similar) classifies food items and estimates quantities
 3. API returns a proposed log entry for user confirmation
 4. User confirms/edits → saved as a FoodLog
 
 ### New Lambda functions (Phase 2)
+
 - `FoodLogsFunction` — `/food-logs` CRUD
 - `NutritionFunction` — `/nutrition` computed summaries (daily totals, weekly trends)
 - `RestaurantItemsFunction` — `/restaurant-items` catalog
 
 ### Restaurant item vetting
+
 Same pattern as recipe vetting — manual or AI-assisted approval before an item is public.
 
 ### Phase 1 → Phase 2 contract
+
 The only Phase 1 artifact Phase 2 depends on is the `ingredientId` reference and the `nutritionPer100g` stub field. Filling that field in is the only Phase 1 change needed to unlock nutrition tracking for recipes.

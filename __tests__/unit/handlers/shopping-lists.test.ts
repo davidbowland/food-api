@@ -124,12 +124,10 @@ describe('DELETE /shopping-lists/{id}', () => {
 
 describe('PUT /shopping-lists/{id}/items/{itemId}/check', () => {
   beforeAll(() => {
-    jest
-      .mocked(service.checkItem)
-      .mockResolvedValue({
-        ...list,
-        items: [{ itemId: 'item-1', quantity: 1, unit: 'kg', checkedBy: 'u-1', checkedAt: 9_000_000 }],
-      })
+    jest.mocked(service.checkItem).mockResolvedValue({
+      ...list,
+      items: [{ itemId: 'item-1', quantity: 1, unit: 'kg', checkedBy: 'u-1', checkedAt: 9_000_000 }],
+    })
   })
   it('returns 200 on success', async () => {
     const result = await handler(makeEvent('PUT', { id: 'list-1', itemId: 'item-1' }))
