@@ -74,7 +74,12 @@ export const updateShoppingList = async (
 ): Promise<ShoppingListRecord> => {
   const list = await data.getShoppingList(listId)
   if (!canEdit(list, userId)) throw new ForbiddenError('Access denied')
-  const updated: ShoppingListRecord = { ...list, ...(input as any), listId, updatedAt: now() }
+  const updated: ShoppingListRecord = {
+    ...list,
+    title: input.title ?? list.title,
+    items: (input.items as ShoppingListItem[] | undefined) ?? list.items,
+    updatedAt: now(),
+  }
   await data.putShoppingList(updated)
   return updated
 }

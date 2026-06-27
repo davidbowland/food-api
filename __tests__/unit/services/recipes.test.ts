@@ -104,6 +104,22 @@ describe('updateRecipe', () => {
   it('throws ForbiddenError when non-author attempts update', async () => {
     await expect(updateRecipe('rec-1', 'u-other', { title: 'X' })).rejects.toThrow(ForbiddenError)
   })
+  it('does not allow authorUserId to be overwritten', async () => {
+    const result = await updateRecipe('rec-1', 'u-1', { authorUserId: 'attacker' } as any, () => 5_000_000)
+    expect(result.authorUserId).toBe('u-1')
+  })
+  it('does not allow recipeId to be overwritten', async () => {
+    const result = await updateRecipe('rec-1', 'u-1', { recipeId: 'evil-id' } as any, () => 5_000_000)
+    expect(result.recipeId).toBe('rec-1')
+  })
+  it('does not allow createdAt to be overwritten', async () => {
+    const result = await updateRecipe('rec-1', 'u-1', { createdAt: 0 } as any, () => 5_000_000)
+    expect(result.createdAt).toBe(1_000_000)
+  })
+  it('allows status to be changed by the author', async () => {
+    const result = await updateRecipe('rec-1', 'u-1', { status: 'draft' }, () => 5_000_000)
+    expect(result.status).toBe('draft')
+  })
 })
 
 describe('deleteRecipe', () => {

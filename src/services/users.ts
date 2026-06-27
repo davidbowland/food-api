@@ -19,7 +19,10 @@ export const getOrCreateUser = async (userId: string, phone: string, now = Date.
 
 export const updateUser = async (userId: string, input: UserUpdateInput): Promise<UserRecord> => {
   const existing = await data.getUser(userId)
-  const updated: UserRecord = { ...existing, ...input }
+  const updated: UserRecord = {
+    ...existing,
+    displayName: input.displayName ?? existing.displayName,
+  }
   await data.putUser(updated)
   return updated
 }

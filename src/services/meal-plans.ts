@@ -54,7 +54,12 @@ export const updateMealPlan = async (
 ): Promise<MealPlanRecord> => {
   const plan = await data.getMealPlan(planId)
   if (!canEdit(plan, userId)) throw new ForbiddenError('Access denied')
-  const updated: MealPlanRecord = { ...plan, ...input, planId, updatedAt: now() }
+  const updated: MealPlanRecord = {
+    ...plan,
+    title: input.title ?? plan.title,
+    items: input.items ?? plan.items,
+    updatedAt: now(),
+  }
   await data.putMealPlan(updated)
   return updated
 }

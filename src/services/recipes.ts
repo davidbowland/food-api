@@ -1,6 +1,6 @@
 import * as data from '../data/recipes'
 import { ForbiddenError } from '../errors'
-import { RecipeIngredient, RecipeRecord } from '../types'
+import { RecipeIngredient, RecipeRecord, RecipeStatus } from '../types'
 import { generateId } from '../utils/id-generator'
 
 interface RecipeInput {
@@ -11,6 +11,17 @@ interface RecipeInput {
   steps: string[]
   tags?: string[]
   photos?: string[]
+}
+
+interface RecipeUpdateInput {
+  title?: string
+  description?: string
+  servings?: number
+  ingredients?: RecipeIngredient[]
+  steps?: string[]
+  tags?: string[]
+  photos?: string[]
+  status?: RecipeStatus
 }
 
 export const listPublishedRecipes = (): Promise<RecipeRecord[]> => data.listPublishedRecipes()
@@ -45,12 +56,23 @@ export const createRecipe = async (authorUserId: string, input: RecipeInput, now
 export const updateRecipe = async (
   recipeId: string,
   requestingUserId: string,
-  input: Partial<RecipeInput>,
+  input: RecipeUpdateInput,
   now = Date.now,
 ): Promise<RecipeRecord> => {
   const existing = await data.getRecipe(recipeId)
   if (existing.authorUserId !== requestingUserId) throw new ForbiddenError('Access denied')
-  const updated: RecipeRecord = { ...existing, ...input, recipeId, updatedAt: now() }
+  const updated: RecipeRecord = {
+    ...existing,
+    title: input.title ?? existing.title,
+    description: input.description ?? existing.description,
+    servings: input.servings ?? existing.servings,
+    ingredients: input.ingredients ?? existing.ingredients,
+    steps: input.steps ?? existing.steps,
+    tags: input.tags ?? existing.tags,
+    photos: input.photos ?? existing.photos,
+    status: input.status ?? existing.status,
+    updatedAt: now(),
+  }
   await data.putRecipe(updated)
   return updated
 }

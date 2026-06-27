@@ -44,6 +44,18 @@ describe('updateUser', () => {
     expect(result.displayName).toBe('Bob')
     expect(result.createdAt).toBe(1_000_000)
   })
+  it('does not allow userId to be overwritten', async () => {
+    const result = await updateUser('u-1', { userId: 'attacker' } as any)
+    expect(result.userId).toBe('u-1')
+  })
+  it('does not allow phone to be overwritten', async () => {
+    const result = await updateUser('u-1', { phone: '+15550000000' } as any)
+    expect(result.phone).toBe('+15551234567')
+  })
+  it('does not allow createdAt to be overwritten', async () => {
+    const result = await updateUser('u-1', { createdAt: 0 } as any)
+    expect(result.createdAt).toBe(1_000_000)
+  })
 })
 
 describe('listFavorites', () => {

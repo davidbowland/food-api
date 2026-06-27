@@ -155,6 +155,27 @@ describe('updateShoppingList', () => {
     jest.mocked(data.getShoppingList).mockResolvedValueOnce(sharedList)
     await expect(updateShoppingList('list-1', 'u-2', { title: 'X' })).rejects.toThrow(ForbiddenError)
   })
+  it('does not allow ownerUserId to be overwritten', async () => {
+    const result = await updateShoppingList('list-1', 'u-1', { ownerUserId: 'attacker' } as any, () => 5_000_000)
+    expect(result.ownerUserId).toBe('u-1')
+  })
+  it('does not allow listId to be overwritten', async () => {
+    const result = await updateShoppingList('list-1', 'u-1', { listId: 'evil-list' } as any, () => 5_000_000)
+    expect(result.listId).toBe('list-1')
+  })
+  it('does not allow shares to be overwritten', async () => {
+    const result = await updateShoppingList(
+      'list-1',
+      'u-1',
+      { shares: [{ userId: 'attacker', role: 'editor' }] } as any,
+      () => 5_000_000,
+    )
+    expect(result.shares).toEqual([])
+  })
+  it('does not allow createdAt to be overwritten', async () => {
+    const result = await updateShoppingList('list-1', 'u-1', { createdAt: 0 } as any, () => 5_000_000)
+    expect(result.createdAt).toBe(1_000_000)
+  })
 })
 
 describe('deleteShoppingList', () => {
