@@ -1,7 +1,7 @@
 {
   "name": "food-api",
   "version": "1.8.0",
-  "description": "Lambda choosee API",
+  "description": "Lambda food API — recipe book, meal planning, shopping lists",
   "author": "David Bowland",
   "engines": {
     "node": "^24.0.0"
@@ -9,12 +9,12 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/davidbowland/choosee-api.git"
+    "url": "git+https://github.com/davidbowland/food-api.git"
   },
   "bugs": {
-    "url": "https://github.com/davidbowland/choosee-api/issues"
+    "url": "https://github.com/davidbowland/food-api/issues"
   },
-  "homepage": "https://github.com/davidbowland/choosee-api#readme",
+  "homepage": "https://github.com/davidbowland/food-api#readme",
   "scripts": {
     "clean": "rm -rf .aws-sam coverage && NODE_ENV=test npm ci",
     "deploy": "NODE_ENV=production npm ci && ./scripts/deploy.sh",
