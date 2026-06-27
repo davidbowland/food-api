@@ -1,0 +1,281 @@
+# food-api endpoints
+# Set @token to a valid Cognito JWT before running authenticated requests
+@baseUrl = https://food-api.bowland.link/v1
+@token = <your-cognito-jwt>
+
+### ── Ingredients ──────────────────────────────────────────
+
+# List all ingredients (public)
+GET {{baseUrl}}/ingredients
+
+###
+
+# Get ingredient by ID (public)
+GET {{baseUrl}}/ingredients/550e8400-e29b-41d4-a716-446655440000
+
+###
+
+# Create ingredient (authenticated)
+POST {{baseUrl}}/ingredients
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "All-Purpose Flour",
+  "allowedUnitTypes": ["volume", "weight"]
+}
+
+###
+
+# Update ingredient (authenticated)
+PUT {{baseUrl}}/ingredients/550e8400-e29b-41d4-a716-446655440000
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Bread Flour",
+  "allowedUnitTypes": ["volume", "weight"]
+}
+
+### ── Recipes ───────────────────────────────────────────────
+
+# List published recipes (public)
+GET {{baseUrl}}/recipes
+
+###
+
+# Get recipe by ID (public for published, owner-only for draft)
+GET {{baseUrl}}/recipes/550e8400-e29b-41d4-a716-446655440001
+
+###
+
+# List my recipes — all statuses (authenticated)
+GET {{baseUrl}}/users/me/recipes
+Authorization: Bearer {{token}}
+
+###
+
+# Create recipe — status=draft (authenticated)
+POST {{baseUrl}}/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Classic Pancakes",
+  "description": "Fluffy pancakes for two",
+  "servings": 2,
+  "ingredients": [
+    { "ingredientId": "550e8400-e29b-41d4-a716-446655440000", "quantity": 1, "unit": "cup" },
+    { "ingredientId": "550e8400-e29b-41d4-a716-446655440002", "quantity": 2, "unit": "unit" }
+  ],
+  "steps": ["Mix dry ingredients", "Add wet ingredients", "Cook on griddle"],
+  "tags": ["breakfast", "quick"]
+}
+
+###
+
+# Update recipe (authenticated, owner only)
+PUT {{baseUrl}}/recipes/550e8400-e29b-41d4-a716-446655440001
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Fluffy Pancakes"
+}
+
+###
+
+# Delete recipe (authenticated, owner only)
+DELETE {{baseUrl}}/recipes/550e8400-e29b-41d4-a716-446655440001
+Authorization: Bearer {{token}}
+
+### ── Photos ────────────────────────────────────────────────
+
+# Get presigned S3 upload URL (authenticated)
+# Response: { uploadUrl: string, key: string }
+# Then PUT the image file directly to uploadUrl, and store key on the recipe
+POST {{baseUrl}}/photos
+Authorization: Bearer {{token}}
+
+### ── Users ─────────────────────────────────────────────────
+
+# Get own profile (authenticated)
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{token}}
+
+###
+
+# Update display name (authenticated)
+PUT {{baseUrl}}/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "displayName": "Alice"
+}
+
+###
+
+# List my favorited recipe IDs (authenticated)
+GET {{baseUrl}}/users/me/favorites
+Authorization: Bearer {{token}}
+
+###
+
+# Add favorite (authenticated)
+PUT {{baseUrl}}/users/me/favorites/550e8400-e29b-41d4-a716-446655440001
+Authorization: Bearer {{token}}
+
+###
+
+# Remove favorite (authenticated)
+DELETE {{baseUrl}}/users/me/favorites/550e8400-e29b-41d4-a716-446655440001
+Authorization: Bearer {{token}}
+
+### ── Meal Plans ─────────────────────────────────────────────
+
+# List my meal plans (owned + shared) (authenticated)
+GET {{baseUrl}}/meal-plans
+Authorization: Bearer {{token}}
+
+###
+
+# Create meal plan (authenticated)
+POST {{baseUrl}}/meal-plans
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Week of Jun 30",
+  "items": [
+    { "recipeId": "550e8400-e29b-41d4-a716-446655440001", "servings": 2 }
+  ]
+}
+
+###
+
+# Get meal plan by ID (authenticated, owner or shared)
+GET {{baseUrl}}/meal-plans/550e8400-e29b-41d4-a716-446655440003
+Authorization: Bearer {{token}}
+
+###
+
+# Update meal plan (authenticated, owner or editor)
+PUT {{baseUrl}}/meal-plans/550e8400-e29b-41d4-a716-446655440003
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Updated Week",
+  "items": [
+    { "recipeId": "550e8400-e29b-41d4-a716-446655440001", "servings": 4 }
+  ]
+}
+
+###
+
+# Delete meal plan (authenticated, owner only)
+DELETE {{baseUrl}}/meal-plans/550e8400-e29b-41d4-a716-446655440003
+Authorization: Bearer {{token}}
+
+###
+
+# Share meal plan with user (authenticated, owner only)
+PUT {{baseUrl}}/meal-plans/550e8400-e29b-41d4-a716-446655440003/shares/550e8400-e29b-41d4-a716-446655440099
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role": "editor"
+}
+
+###
+
+# Remove share (authenticated, owner only)
+DELETE {{baseUrl}}/meal-plans/550e8400-e29b-41d4-a716-446655440003/shares/550e8400-e29b-41d4-a716-446655440099
+Authorization: Bearer {{token}}
+
+### ── Shopping Lists ─────────────────────────────────────────
+
+# List my shopping lists (owned + shared) (authenticated)
+GET {{baseUrl}}/shopping-lists
+Authorization: Bearer {{token}}
+
+###
+
+# Create empty shopping list (authenticated)
+POST {{baseUrl}}/shopping-lists
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Grocery Run"
+}
+
+###
+
+# Create shopping list generated from a meal plan (authenticated)
+POST {{baseUrl}}/shopping-lists
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Week of Jun 30 groceries",
+  "generatedFromPlanId": "550e8400-e29b-41d4-a716-446655440003"
+}
+
+###
+
+# Get shopping list (authenticated, owner or shared)
+GET {{baseUrl}}/shopping-lists/550e8400-e29b-41d4-a716-446655440004
+Authorization: Bearer {{token}}
+
+###
+
+# Update shopping list (authenticated, owner or editor)
+PUT {{baseUrl}}/shopping-lists/550e8400-e29b-41d4-a716-446655440004
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Renamed list",
+  "items": [
+    { "ingredientId": "550e8400-e29b-41d4-a716-446655440000", "quantity": 2, "unit": "cup" },
+    { "freeText": "Paper towels", "quantity": 1, "unit": "unit" }
+  ]
+}
+
+###
+
+# Delete shopping list (authenticated, owner only)
+DELETE {{baseUrl}}/shopping-lists/550e8400-e29b-41d4-a716-446655440004
+Authorization: Bearer {{token}}
+
+###
+
+# Mark item as checked (authenticated, owner or shared)
+PUT {{baseUrl}}/shopping-lists/550e8400-e29b-41d4-a716-446655440004/items/550e8400-e29b-41d4-a716-446655440050/check
+Authorization: Bearer {{token}}
+
+###
+
+# Uncheck item (authenticated, owner or shared)
+DELETE {{baseUrl}}/shopping-lists/550e8400-e29b-41d4-a716-446655440004/items/550e8400-e29b-41d4-a716-446655440050/check
+Authorization: Bearer {{token}}
+
+###
+
+# Share shopping list (authenticated, owner only)
+PUT {{baseUrl}}/shopping-lists/550e8400-e29b-41d4-a716-446655440004/shares/550e8400-e29b-41d4-a716-446655440099
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role": "viewer"
+}
+
+###
+
+# Remove share from shopping list (authenticated, owner only)
+DELETE {{baseUrl}}/shopping-lists/550e8400-e29b-41d4-a716-446655440004/shares/550e8400-e29b-41d4-a716-446655440099
+Authorization: Bearer {{token}}
