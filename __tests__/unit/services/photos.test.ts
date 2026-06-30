@@ -8,6 +8,7 @@ jest.mock('@aws-sdk/s3-request-presigner')
 jest.mock('@utils/logging', () => ({ xrayCapture: jest.fn((x: unknown) => x) }))
 jest.mock('@config', () => ({
   photoBucketName: 'test-bucket',
+  photoCdnDomain: 'food-photos.example.com',
   photoPresignedUrlExpireSeconds: 3600,
 }))
 
@@ -16,10 +17,11 @@ describe('generatePresignedUploadUrl', () => {
     jest.mocked(getSignedUrl).mockResolvedValue('https://s3.example.com/presigned')
   })
 
-  it('returns a presigned URL and a key', async () => {
-    const result = await generatePresignedUploadUrl(() => crypto.randomUUID())
+  it('returns a presigned URL, key, and photo URL', async () => {
+    const result = await generatePresignedUploadUrl(() => 'test-uuid')
     expect(result.uploadUrl).toBe('https://s3.example.com/presigned')
-    expect(result.key).toMatch(/^photos\//)
+    expect(result.key).toBe('photos/test-uuid')
+    expect(result.photoUrl).toBe('https://food-photos.example.com/photos/test-uuid')
   })
 
   it('generates a unique key each call', async () => {
