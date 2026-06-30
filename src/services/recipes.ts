@@ -1,7 +1,13 @@
 import * as data from '../data/recipes'
 import { ForbiddenError } from '../errors'
+import { buildPhotoUrl } from '../services/photos'
 import { RecipeIngredient, RecipeRecord, RecipeStatus } from '../types'
 import { generateId } from '../utils/id-generator'
+
+const withPhotoUrls = (record: RecipeRecord): RecipeRecord => ({
+  ...record,
+  photos: record.photos.map(buildPhotoUrl),
+})
 
 interface RecipeInput {
   title: string
@@ -24,16 +30,18 @@ interface RecipeUpdateInput {
   status?: RecipeStatus
 }
 
-export const listPublishedRecipes = (): Promise<RecipeRecord[]> => data.listPublishedRecipes()
+export const listPublishedRecipes = async (): Promise<RecipeRecord[]> =>
+  (await data.listPublishedRecipes()).map(withPhotoUrls)
 
-export const listMyRecipes = (userId: string): Promise<RecipeRecord[]> => data.listRecipesByAuthor(userId)
+export const listMyRecipes = async (userId: string): Promise<RecipeRecord[]> =>
+  (await data.listRecipesByAuthor(userId)).map(withPhotoUrls)
 
 export const getRecipe = async (recipeId: string, requestingUserId?: string): Promise<RecipeRecord> => {
   const recipe = await data.getRecipe(recipeId)
   if (recipe.status !== 'published' && recipe.authorUserId !== requestingUserId) {
     throw new ForbiddenError('Access denied')
   }
-  return recipe
+  return withPhotoUrls(recipe)
 }
 
 export const createRecipe = async (authorUserId: string, input: RecipeInput, now = Date.now): Promise<RecipeRecord> => {
@@ -50,7 +58,7 @@ export const createRecipe = async (authorUserId: string, input: RecipeInput, now
     updatedAt: ts,
   }
   await data.putRecipe(record)
-  return record
+  return withPhotoUrls(record)
 }
 
 export const updateRecipe = async (
@@ -74,7 +82,7 @@ export const updateRecipe = async (
     updatedAt: now(),
   }
   await data.putRecipe(updated)
-  return updated
+  return withPhotoUrls(updated)
 }
 
 export const deleteRecipe = async (recipeId: string, requestingUserId: string): Promise<void> => {

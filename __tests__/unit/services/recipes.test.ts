@@ -12,6 +12,7 @@ import {
 import { generateId } from '@utils/id-generator'
 
 jest.mock('@data/recipes')
+jest.mock('@services/photos', () => ({ buildPhotoUrl: (id: string) => `https://cdn.example.com/${id}` }))
 jest.mock('@utils/id-generator', () => ({ generateId: jest.fn() }))
 
 const recipe = {
@@ -66,6 +67,12 @@ describe('getRecipe', () => {
   it('throws ForbiddenError for draft requested with no userId', async () => {
     jest.mocked(data.getRecipe).mockResolvedValueOnce({ ...recipe, status: 'draft' as const })
     await expect(getRecipe('rec-1')).rejects.toThrow(ForbiddenError)
+  })
+
+  it('expands photo fileIds to CDN URLs', async () => {
+    jest.mocked(data.getRecipe).mockResolvedValueOnce({ ...recipe, photos: ['file-id-1', 'file-id-2'] })
+    const result = await getRecipe('rec-1')
+    expect(result.photos).toEqual(['https://cdn.example.com/file-id-1', 'https://cdn.example.com/file-id-2'])
   })
 })
 
