@@ -759,6 +759,7 @@ Resources:
           - DomainName: !GetAtt PhotoBucket.RegionalDomainName
             Id: PhotoBucketOrigin
             OriginAccessControlId: !GetAtt PhotoBucketOAC.Id
+            OriginPath: /photos
             S3OriginConfig: {}
         ViewerCertificate:
           AcmCertificateArn: !Sub

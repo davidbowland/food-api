@@ -92,8 +92,9 @@ Authorization: Bearer {{token}}
 ### ── Photos ────────────────────────────────────────────────
 
 # Get presigned S3 upload URL (authenticated)
-# Response: { uploadUrl: string, key: string }
-# Then PUT the image file directly to uploadUrl, and store key on the recipe
+# Response: { uploadUrl: string, key: string, photoUrl: string }
+# PUT the image file directly to uploadUrl; use photoUrl (CDN) to display it
+# key is the S3 path (photos/{uuid}); photoUrl is https://food-photos.bowland.link/{uuid}
 POST {{baseUrl}}/photos
 Authorization: Bearer {{token}}
 

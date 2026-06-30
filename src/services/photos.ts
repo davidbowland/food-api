@@ -9,9 +9,10 @@ const s3 = xrayCapture(new S3Client({}))
 export const generatePresignedUploadUrl = async (
   randomUUID = () => crypto.randomUUID(),
 ): Promise<{ uploadUrl: string; key: string; photoUrl: string }> => {
-  const key = `photos/${randomUUID()}`
+  const id = randomUUID()
+  const key = `photos/${id}`
   const uploadUrl = await getSignedUrl(s3, new PutObjectCommand({ Bucket: photoBucketName, Key: key }), {
     expiresIn: photoPresignedUrlExpireSeconds,
   })
-  return { uploadUrl, key, photoUrl: `https://${photoCdnDomain}/${key}` }
+  return { uploadUrl, key, photoUrl: `https://${photoCdnDomain}/${id}` }
 }

@@ -21,7 +21,7 @@ describe('generatePresignedUploadUrl', () => {
     const result = await generatePresignedUploadUrl(() => 'test-uuid')
     expect(result.uploadUrl).toBe('https://s3.example.com/presigned')
     expect(result.key).toBe('photos/test-uuid')
-    expect(result.photoUrl).toBe('https://food-photos.example.com/photos/test-uuid')
+    expect(result.photoUrl).toBe('https://food-photos.example.com/test-uuid')
   })
 
   it('generates a unique key each call', async () => {

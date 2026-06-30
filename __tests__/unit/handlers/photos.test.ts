@@ -15,7 +15,7 @@ describe('POST /photos', () => {
     jest.mocked(service.generatePresignedUploadUrl).mockResolvedValue({
       uploadUrl: 'https://s3.example.com/upload',
       key: 'photos/abc.jpg',
-      photoUrl: 'https://food-photos.example.com/photos/abc.jpg',
+      photoUrl: 'https://food-photos.example.com/abc.jpg',
     })
   })
 
@@ -25,7 +25,7 @@ describe('POST /photos', () => {
     const body = JSON.parse(result.body as string)
     expect(body.uploadUrl).toBe('https://s3.example.com/upload')
     expect(body.key).toBe('photos/abc.jpg')
-    expect(body.photoUrl).toBe('https://food-photos.example.com/photos/abc.jpg')
+    expect(body.photoUrl).toBe('https://food-photos.example.com/abc.jpg')
   })
 
   it('returns 401 when unauthenticated', async () => {
