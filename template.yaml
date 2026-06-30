@@ -132,7 +132,13 @@ Resources:
       Handler: src/auth-triggers/define-auth-challenge.handler
       MemorySize: 256
       Description: food-api Cognito define auth challenge trigger
-      Policies: [AWSLambdaBasicExecutionRole]
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FoodTable
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref FoodTable
       Timeout: 5
     Metadata:
       BuildMethod: esbuild
@@ -156,9 +162,13 @@ Resources:
       Handler: src/auth-triggers/create-auth-challenge.handler
       MemorySize: 256
       Description: food-api Cognito create auth challenge trigger (sends OTP via SMS)
-      Policies: [AWSLambdaBasicExecutionRole]
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FoodTable
       Environment:
         Variables:
+          DYNAMODB_TABLE_NAME: !Ref FoodTable
           SMS_API_KEY: !Ref SmsApiKey
           SMS_API_URL: !FindInMap [EnvironmentMap, !Ref Environment, smsApiUrl]
       Timeout: 15
@@ -689,6 +699,9 @@ Resources:
         - { AttributeName: PK, KeyType: HASH }
         - { AttributeName: SK, KeyType: RANGE }
       TableName: !FindInMap [EnvironmentMap, !Ref Environment, table]
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       Tags:
         - { Key: 'created-by', Value: 'food-api' }
         - { Key: 'created-for', Value: 'food' }
