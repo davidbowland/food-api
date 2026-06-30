@@ -70,14 +70,14 @@ export const listFavorites = async (userId: string): Promise<string[]> => {
 }
 
 export const getUserIdByPhone = async (phone: string): Promise<string> => {
+  let response
   try {
-    const response = await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: phone }))
-    const sub = response.UserAttributes?.find((attr) => attr.Name === 'sub')?.Value
-    if (!sub) throw new NotFoundError('User not found')
-    return sub
+    response = await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: phone }))
   } catch (error) {
-    if (error instanceof NotFoundError || error instanceof UserNotFoundException)
-      throw new NotFoundError('User not found')
+    if (error instanceof UserNotFoundException) throw new NotFoundError('User not found')
     throw error
   }
+  const sub = response.UserAttributes?.find((attr) => attr.Name === 'sub')?.Value
+  if (!sub) throw new NotFoundError('User not found')
+  return sub
 }
