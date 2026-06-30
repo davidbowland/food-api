@@ -1,8 +1,10 @@
+import { AdminGetUserCommand, UserNotFoundException } from '@aws-sdk/client-cognito-identity-provider'
 import { DeleteItemCommand, GetItemCommand, PutItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb'
 
-import { dynamodbTableName } from '../config'
+import { dynamodbTableName, userPoolId } from '../config'
 import { NotFoundError } from '../errors'
 import { UserRecord } from '../types'
+import cognito from './cognito'
 import dynamodb from './dynamodb'
 
 export const getUser = async (userId: string): Promise<UserRecord> => {
@@ -65,4 +67,17 @@ export const listFavorites = async (userId: string): Promise<string[]> => {
     }),
   )
   return (response.Items ?? []).map((item: { recipeId?: { S?: string } }) => item.recipeId?.S ?? '')
+}
+
+export const getUserIdByPhone = async (phone: string): Promise<string> => {
+  try {
+    const response = await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: phone }))
+    const sub = response.UserAttributes?.find((attr) => attr.Name === 'sub')?.Value
+    if (!sub) throw new NotFoundError('User not found')
+    return sub
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof UserNotFoundException)
+      throw new NotFoundError('User not found')
+    throw error
+  }
 }

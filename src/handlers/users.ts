@@ -44,6 +44,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return status.NO_CONTENT
     }
 
+    if (method === 'GET' && path.endsWith('/users/lookup')) {
+      const phone = event.queryStringParameters?.phone ?? ''
+      const result = await service.lookupUserByPhone(phone)
+      return { ...status.OK, body: JSON.stringify(result) }
+    }
+
     return status.NOT_FOUND
   } catch (error) {
     return handleError(error)

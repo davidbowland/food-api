@@ -1,5 +1,5 @@
 import * as data from '../data/users'
-import { NotFoundError } from '../errors'
+import { NotFoundError, ValidationError } from '../errors'
 import { UserRecord } from '../types'
 
 interface UserUpdateInput {
@@ -32,3 +32,17 @@ export const listFavorites = (userId: string): Promise<string[]> => data.listFav
 export const addFavorite = (userId: string, recipeId: string): Promise<void> => data.addFavorite(userId, recipeId)
 
 export const removeFavorite = (userId: string, recipeId: string): Promise<void> => data.removeFavorite(userId, recipeId)
+
+const E164_REGEX = /^\+[1-9]\d{1,14}$/
+
+export const lookupUserByPhone = async (phone: string): Promise<{ userId: string; displayName: string }> => {
+  if (!E164_REGEX.test(phone)) throw new ValidationError('phone must be in E.164 format')
+  const userId = await data.getUserIdByPhone(phone)
+  try {
+    const profile = await data.getUser(userId)
+    return { userId, displayName: profile.displayName || phone }
+  } catch (error) {
+    if (error instanceof NotFoundError) return { userId, displayName: phone }
+    throw error
+  }
+}

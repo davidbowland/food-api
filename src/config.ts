@@ -9,3 +9,4 @@ export const photoPresignedUrlExpireSeconds = parseInt(process.env.PHOTO_PRESIGN
 export const corsDomain = process.env.CORS_DOMAIN as string
 export const smsApiKey = process.env.SMS_API_KEY as string
 export const smsApiUrl = process.env.SMS_API_URL as string
+export const userPoolId = process.env.COGNITO_USER_POOL_ID as string

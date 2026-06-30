@@ -1,7 +1,14 @@
 import * as data from '@data/users'
-import { NotFoundError } from '@errors'
+import { NotFoundError, ValidationError } from '@errors'
 
-import { getOrCreateUser, updateUser, listFavorites, addFavorite, removeFavorite } from '@services/users'
+import {
+  getOrCreateUser,
+  updateUser,
+  listFavorites,
+  addFavorite,
+  removeFavorite,
+  lookupUserByPhone,
+} from '@services/users'
 
 jest.mock('@data/users')
 
@@ -87,5 +94,36 @@ describe('removeFavorite', () => {
   it('delegates to data layer', async () => {
     await removeFavorite('u-1', 'rec-1')
     expect(data.removeFavorite).toHaveBeenCalledWith('u-1', 'rec-1')
+  })
+})
+
+describe('lookupUserByPhone', () => {
+  const profile = { userId: 'u-1', phone: '+15551234567', displayName: 'Alice', createdAt: 1_000_000 }
+
+  beforeAll(() => {
+    jest.mocked(data.getUserIdByPhone).mockResolvedValue('u-1')
+    jest.mocked(data.getUser).mockResolvedValue(profile)
+  })
+
+  it('returns userId and displayName for valid phone', async () => {
+    expect(await lookupUserByPhone('+15551234567')).toEqual({ userId: 'u-1', displayName: 'Alice' })
+  })
+
+  it('falls back to phone as displayName when no profile exists', async () => {
+    jest.mocked(data.getUser).mockRejectedValueOnce(new NotFoundError('no profile'))
+    expect(await lookupUserByPhone('+15551234567')).toEqual({ userId: 'u-1', displayName: '+15551234567' })
+  })
+
+  it('throws ValidationError for non-E.164 input', async () => {
+    await expect(lookupUserByPhone('not-a-phone')).rejects.toThrow(ValidationError)
+  })
+
+  it('throws ValidationError for empty string', async () => {
+    await expect(lookupUserByPhone('')).rejects.toThrow(ValidationError)
+  })
+
+  it('re-throws unexpected data errors', async () => {
+    jest.mocked(data.getUserIdByPhone).mockRejectedValueOnce(new Error('network'))
+    await expect(lookupUserByPhone('+15551234567')).rejects.toThrow('network')
   })
 })

@@ -408,8 +408,14 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - DynamoDBCrudPolicy:
             TableName: !Ref FoodTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: cognito-idp:AdminGetUser
+              Resource: !GetAtt UserPool.Arn
       Environment:
         Variables:
+          COGNITO_USER_POOL_ID: !Ref UserPool
           DYNAMODB_TABLE_NAME: !Ref FoodTable
       Events:
         GetMe:
@@ -442,6 +448,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /users/me/favorites/{recipeId}
             Method: delete
+        GetUserLookup:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/lookup
+            Method: get
       Timeout: 15
     Metadata:
       BuildMethod: esbuild

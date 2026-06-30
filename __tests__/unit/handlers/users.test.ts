@@ -1,3 +1,5 @@
+import { NotFoundError, ValidationError } from '@errors'
+
 import { handler } from '@handlers/users'
 import * as service from '@services/users'
 import { APIGatewayProxyEventV2 } from '@types'
@@ -135,5 +137,58 @@ describe('service error handling', () => {
     jest.mocked(service.getOrCreateUser).mockRejectedValueOnce(new Error('DB error'))
     const result = await handler(makeEvent('GET', '/v1/users/me'))
     expect(result.statusCode).toBe(500)
+  })
+})
+
+describe('GET /users/lookup', () => {
+  const lookupResult = { userId: 'u-1', displayName: 'Alice' }
+
+  beforeAll(() => {
+    jest.mocked(service.lookupUserByPhone).mockResolvedValue(lookupResult)
+  })
+
+  it('returns 200 with userId and displayName', async () => {
+    const event = {
+      rawPath: '/v1/users/lookup',
+      requestContext: {
+        http: { method: 'GET' },
+        authorizer: { jwt: { claims: { sub: 'u-2', phone_number: '+15559999999' } } },
+      },
+      queryStringParameters: { phone: '+15551234567' },
+    } as unknown as APIGatewayProxyEventV2
+    const result = await handler(event)
+    expect(result.statusCode).toBe(200)
+    expect(JSON.parse(result.body as string)).toEqual(lookupResult)
+  })
+
+  it('returns 400 when service throws ValidationError', async () => {
+    jest.mocked(service.lookupUserByPhone).mockRejectedValueOnce(new ValidationError('phone must be in E.164 format'))
+    const event = {
+      rawPath: '/v1/users/lookup',
+      requestContext: { http: { method: 'GET' }, authorizer: { jwt: { claims: { sub: 'u-2' } } } },
+      queryStringParameters: { phone: 'bad' },
+    } as unknown as APIGatewayProxyEventV2
+    const result = await handler(event)
+    expect(result.statusCode).toBe(400)
+  })
+
+  it('returns 404 when service throws NotFoundError', async () => {
+    jest.mocked(service.lookupUserByPhone).mockRejectedValueOnce(new NotFoundError('not found'))
+    const event = {
+      rawPath: '/v1/users/lookup',
+      requestContext: { http: { method: 'GET' }, authorizer: { jwt: { claims: { sub: 'u-2' } } } },
+      queryStringParameters: { phone: '+15550000000' },
+    } as unknown as APIGatewayProxyEventV2
+    const result = await handler(event)
+    expect(result.statusCode).toBe(404)
+  })
+
+  it('returns 401 when unauthenticated', async () => {
+    const event = {
+      rawPath: '/v1/users/lookup',
+      requestContext: { http: { method: 'GET' } },
+    } as unknown as APIGatewayProxyEventV2
+    const result = await handler(event)
+    expect(result.statusCode).toBe(401)
   })
 })

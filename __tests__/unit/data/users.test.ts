@@ -1,11 +1,17 @@
+import { AdminGetUserCommand, UserNotFoundException } from '@aws-sdk/client-cognito-identity-provider'
 import { PutItemCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb'
+import cognito from '@data/cognito'
 import dynamodb from '@data/dynamodb'
-import { getUser, putUser, addFavorite, removeFavorite, listFavorites } from '@data/users'
+import { getUser, putUser, addFavorite, removeFavorite, listFavorites, getUserIdByPhone } from '@data/users'
 import { NotFoundError } from '@errors'
 
 import { UserRecord } from '@types'
 
 jest.mock('@aws-sdk/client-dynamodb', () => jest.requireActual('@aws-sdk/client-dynamodb'))
+jest.mock('@aws-sdk/client-cognito-identity-provider', () =>
+  jest.requireActual('@aws-sdk/client-cognito-identity-provider'),
+)
+jest.mock('@data/cognito', () => ({ __esModule: true, default: { send: jest.fn() } }))
 jest.mock('@data/dynamodb', () => ({ __esModule: true, default: { send: jest.fn() } }))
 jest.mock('@utils/logging', () => ({ xrayCapture: jest.fn((x: unknown) => x), logError: jest.fn() }))
 
@@ -80,5 +86,34 @@ describe('listFavorites', () => {
   it('returns empty string for items with no recipeId S value', async () => {
     jest.mocked(dynamodb.send).mockResolvedValueOnce({ Items: [{}] } as any)
     expect(await listFavorites('u-1')).toEqual([''])
+  })
+})
+
+describe('getUserIdByPhone', () => {
+  const cognitoResponse = { UserAttributes: [{ Name: 'sub', Value: 'u-1' }] }
+
+  beforeAll(() => {
+    jest.mocked(cognito.send).mockResolvedValue(cognitoResponse as any)
+  })
+
+  it('returns userId (sub) for known phone', async () => {
+    expect(await getUserIdByPhone('+15551234567')).toBe('u-1')
+    const call = jest.mocked(cognito.send).mock.calls[0][0]
+    expect(call).toBeInstanceOf(AdminGetUserCommand)
+  })
+
+  it('throws NotFoundError when sub attribute is absent', async () => {
+    jest.mocked(cognito.send).mockResolvedValueOnce({ UserAttributes: [] } as any)
+    await expect(getUserIdByPhone('+15551234567')).rejects.toThrow(NotFoundError)
+  })
+
+  it('throws NotFoundError for UserNotFoundException', async () => {
+    jest.mocked(cognito.send).mockRejectedValueOnce(new UserNotFoundException({ message: 'not found', $metadata: {} }))
+    await expect(getUserIdByPhone('+15551234567')).rejects.toThrow(NotFoundError)
+  })
+
+  it('re-throws unexpected errors', async () => {
+    jest.mocked(cognito.send).mockRejectedValueOnce(new Error('network error'))
+    await expect(getUserIdByPhone('+15551234567')).rejects.toThrow('network error')
   })
 })
