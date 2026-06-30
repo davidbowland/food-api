@@ -104,7 +104,6 @@ Resources:
     Properties:
       UserPoolName: !Sub 'food-${Environment}'
       UsernameAttributes: [phone_number]
-      AutoVerifiedAttributes: [phone_number]
       MfaConfiguration: 'OFF'
       LambdaConfig:
         DefineAuthChallenge: !GetAtt DefineAuthChallengeFunction.Arn
