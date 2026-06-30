@@ -69,6 +69,23 @@ Only `displayName` can be changed. Do not send other fields.
 
 ---
 
+## User Lookup
+
+Used to resolve a phone number to a userId before sharing a meal plan or shopping list.
+
+```
+GET /users/lookup?phone=%2B15551234567
+→ { userId: string, displayName: string }
+```
+
+`phone` must be URL-encoded E.164 format (e.g. `+15551234567` → `%2B15551234567`).
+
+Returns 400 if `phone` is missing or not valid E.164. Returns 404 if no account exists with that phone number.
+
+The returned `displayName` defaults to the phone number if the user has not set one.
+
+---
+
 ## Ingredients
 
 The ingredient catalog is shared and global — not per-user.
