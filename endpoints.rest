@@ -56,6 +56,7 @@ Authorization: Bearer {{token}}
 ###
 
 # Create recipe — status=draft (authenticated)
+# photos[] should contain photoUrl values returned by POST /photos
 POST {{baseUrl}}/recipes
 Authorization: Bearer {{token}}
 Content-Type: application/json
@@ -69,18 +70,21 @@ Content-Type: application/json
     { "ingredientId": "550e8400-e29b-41d4-a716-446655440002", "quantity": 2, "unit": "unit" }
   ],
   "steps": ["Mix dry ingredients", "Add wet ingredients", "Cook on griddle"],
-  "tags": ["breakfast", "quick"]
+  "tags": ["breakfast", "quick"],
+  "photos": ["https://food-photos.bowland.link/550e8400-e29b-41d4-a716-446655440010"]
 }
 
 ###
 
 # Update recipe (authenticated, owner only)
+# photos[] stores CDN URLs from POST /photos; GET /recipes/{id} echoes them back as-is
 PUT {{baseUrl}}/recipes/550e8400-e29b-41d4-a716-446655440001
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "title": "Fluffy Pancakes"
+  "title": "Fluffy Pancakes",
+  "photos": ["https://food-photos.bowland.link/550e8400-e29b-41d4-a716-446655440010"]
 }
 
 ###
