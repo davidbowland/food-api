@@ -1,8 +1,8 @@
 import { handler } from '@auth-triggers/define-auth-challenge'
-import { deleteRateLimit, phoneRateLimitKey } from '@data/rate-limit'
+import { deleteSends, phoneRateLimitKey } from '@data/rate-limit'
 
 jest.mock('@data/rate-limit', () => ({
-  deleteRateLimit: jest.fn(),
+  deleteSends: jest.fn(),
   phoneRateLimitKey: (phone: string) => `RATE#PHONE#${phone}`,
 }))
 
@@ -16,13 +16,13 @@ describe('first challenge (no sessions)', () => {
     expect(result.response.challengeName).toBe('CUSTOM_CHALLENGE')
     expect(result.response.issueTokens).toBe(false)
     expect(result.response.failAuthentication).toBe(false)
-    expect(deleteRateLimit).not.toHaveBeenCalled()
+    expect(deleteSends).not.toHaveBeenCalled()
   })
 })
 
 describe('correct answer', () => {
   beforeAll(() => {
-    jest.mocked(deleteRateLimit).mockResolvedValue(undefined)
+    jest.mocked(deleteSends).mockResolvedValue(undefined)
   })
 
   it('issues tokens and resets phone rate limit', async () => {
@@ -33,7 +33,7 @@ describe('correct answer', () => {
     const result = await handler(event)
     expect(result.response.issueTokens).toBe(true)
     expect(result.response.failAuthentication).toBe(false)
-    expect(deleteRateLimit).toHaveBeenCalledWith(phoneRateLimitKey(phone))
+    expect(deleteSends).toHaveBeenCalledWith(phoneRateLimitKey(phone))
   })
 })
 
@@ -46,6 +46,6 @@ describe('wrong answer', () => {
     const result = await handler(event)
     expect(result.response.failAuthentication).toBe(true)
     expect(result.response.issueTokens).toBe(false)
-    expect(deleteRateLimit).not.toHaveBeenCalled()
+    expect(deleteSends).not.toHaveBeenCalled()
   })
 })

@@ -1,32 +1,41 @@
-import { DeleteItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
+import { DeleteItemCommand, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb'
 
 import { dynamodbTableName } from '../config'
 import dynamodb from './dynamodb'
 
+const WINDOW_MS = 3_600_000
 const WINDOW_SECONDS = 3600
 
 export const phoneRateLimitKey = (phone: string): string => `RATE#PHONE#${phone}`
 export const globalRateLimitKey = 'RATE#GLOBAL'
 
-export const incrementCount = async (pk: string, now = Date.now): Promise<number> => {
-  const expiry = Math.floor(now() / 1000) + WINDOW_SECONDS
+export const getSends = async (pk: string, nowMs: number): Promise<number[]> => {
   const result = await dynamodb.send(
-    new UpdateItemCommand({
-      ExpressionAttributeNames: { '#count': 'count', '#ttl': 'ttl' },
-      ExpressionAttributeValues: {
-        ':expiry': { N: `${expiry}` },
-        ':one': { N: '1' },
-      },
+    new GetItemCommand({
       Key: { PK: { S: pk }, SK: { S: 'RATE' } },
-      ReturnValues: 'ALL_NEW',
       TableName: dynamodbTableName,
-      UpdateExpression: 'ADD #count :one SET #ttl = if_not_exists(#ttl, :expiry)',
     }),
   )
-  return parseInt(result.Attributes!['count'].N!, 10)
+  if (!result.Item?.sends?.S) return []
+  return (JSON.parse(result.Item.sends.S) as number[]).filter((t) => nowMs - t < WINDOW_MS)
 }
 
-export const deleteRateLimit = async (pk: string): Promise<void> => {
+export const putSends = async (pk: string, sends: number[], nowMs: number): Promise<void> => {
+  const ttl = Math.floor(nowMs / 1000) + WINDOW_SECONDS + 300
+  await dynamodb.send(
+    new PutItemCommand({
+      Item: {
+        PK: { S: pk },
+        SK: { S: 'RATE' },
+        sends: { S: JSON.stringify(sends) },
+        ttl: { N: `${ttl}` },
+      },
+      TableName: dynamodbTableName,
+    }),
+  )
+}
+
+export const deleteSends = async (pk: string): Promise<void> => {
   await dynamodb.send(
     new DeleteItemCommand({
       Key: { PK: { S: pk }, SK: { S: 'RATE' } },

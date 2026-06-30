@@ -1,4 +1,4 @@
-import { deleteRateLimit, phoneRateLimitKey } from '../data/rate-limit'
+import { deleteSends, phoneRateLimitKey } from '../data/rate-limit'
 
 export const handler = async (event: any): Promise<any> => {
   const sessions = event.request.session ?? []
@@ -9,7 +9,7 @@ export const handler = async (event: any): Promise<any> => {
   } else if (sessions[sessions.length - 1].challengeResult === true) {
     event.response.failAuthentication = false
     event.response.issueTokens = true
-    await deleteRateLimit(phoneRateLimitKey(event.request.userAttributes.phone_number))
+    await deleteSends(phoneRateLimitKey(event.request.userAttributes.phone_number))
   } else {
     event.response.failAuthentication = true
     event.response.issueTokens = false
