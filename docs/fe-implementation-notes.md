@@ -38,6 +38,41 @@ re-auth flow. When it returns `403`, the user is authenticated but does not
 have access to that specific resource — show a "not authorized" message, do
 not re-auth.
 
+### Cognito auth errors
+
+Errors during the Cognito auth flow are thrown by the SDK, not returned as
+HTTP responses. Handle them by inspecting the exception `name` and `message`:
+
+**Step 2 — requesting the OTP (`initiateAuth`):**
+
+| Exception name                                                  | When                                               | FE action                                                                           |
+| --------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `UserLambdaValidationException` (message contains "rate limit") | Per-phone limit (3/hr) or global limit (20/hr) hit | "Too many code requests. Please wait before trying again." Disable the send button. |
+| `UserLambdaValidationException` (other message)                 | Lambda error                                       | Generic: "Something went wrong. Please try again."                                  |
+| `UserNotFoundException`                                         | Phone number not registered                        | Do not reveal — show same UI as success to avoid phone enumeration                  |
+
+**Step 3 — submitting the OTP (`respondToAuthChallenge`):**
+
+| Exception name           | When                                                                | FE action                                  |
+| ------------------------ | ------------------------------------------------------------------- | ------------------------------------------ |
+| `NotAuthorizedException` | Wrong OTP (auth fails immediately — no retries allowed per session) | "Incorrect code. Request a new one."       |
+| Any other                | Unexpected                                                          | Generic error + option to restart the flow |
+
+Rate limit detection example:
+
+```ts
+try {
+  await initiateAuth(phone)
+} catch (err: any) {
+  if (err.name === 'UserLambdaValidationException' && err.message.includes('rate limit')) {
+    showError('Too many code requests. Please wait before trying again.')
+    disableSendButton()
+  } else {
+    showError('Something went wrong. Please try again.')
+  }
+}
+```
+
 ---
 
 ## User Profile
