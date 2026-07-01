@@ -99,10 +99,12 @@ describe('generateShoppingListItems', () => {
     expect(new Set(ingredientIds).size).toBe(ingredientIds.length)
   })
 
-  it('assigns a unique itemId to each item', () => {
-    const items = generateShoppingListItems(plan, recipes, ingredientMap)
+  it('assigns itemId from the injected generator', () => {
+    let n = 0
+    const items = generateShoppingListItems(plan, recipes, ingredientMap, () => `id-${n++}`)
     const ids = items.map((i) => i.itemId)
     expect(new Set(ids).size).toBe(ids.length)
+    expect(ids[0]).toBe('id-0')
   })
 
   it('skips recipes not present in the recipe map', () => {

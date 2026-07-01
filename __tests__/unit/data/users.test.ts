@@ -1,10 +1,10 @@
 import { AdminGetUserCommand, UserNotFoundException } from '@aws-sdk/client-cognito-identity-provider'
 import { PutItemCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb'
+
 import cognito from '@data/cognito'
 import dynamodb from '@data/dynamodb'
 import { getUser, putUser, addFavorite, removeFavorite, listFavorites, getUserIdByPhone } from '@data/users'
 import { NotFoundError } from '@errors'
-
 import { UserRecord } from '@types'
 
 jest.mock('@aws-sdk/client-dynamodb', () => jest.requireActual('@aws-sdk/client-dynamodb'))
@@ -52,10 +52,16 @@ describe('addFavorite', () => {
   })
 
   it('sends PutItemCommand with FAVORITE SK', async () => {
-    await addFavorite('u-1', 'rec-1')
+    await addFavorite('u-1', 'rec-1', () => 1_000_000)
     const call = jest.mocked(dynamodb.send).mock.calls[0][0]
     expect(call).toBeInstanceOf(PutItemCommand)
     expect((call as PutItemCommand).input.Item?.SK).toEqual({ S: 'FAVORITE#rec-1' })
+  })
+
+  it('sends addedAt from the injected clock', async () => {
+    await addFavorite('u-1', 'rec-1', () => 1_000_000)
+    const call = jest.mocked(dynamodb.send).mock.calls[0][0]
+    expect((call as PutItemCommand).input.Item?.addedAt).toEqual({ N: '1000000' })
   })
 })
 

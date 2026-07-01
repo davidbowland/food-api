@@ -32,11 +32,11 @@ export const putUser = async (user: UserRecord): Promise<void> => {
   )
 }
 
-export const addFavorite = async (userId: string, recipeId: string): Promise<void> => {
+export const addFavorite = async (userId: string, recipeId: string, now = Date.now): Promise<void> => {
   await dynamodb.send(
     new PutItemCommand({
       Item: {
-        addedAt: { N: `${Date.now()}` },
+        addedAt: { N: `${now()}` },
         PK: { S: `USER#${userId}` },
         recipeId: { S: recipeId },
         SK: { S: `FAVORITE#${recipeId}` },

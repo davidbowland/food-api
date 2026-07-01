@@ -16,4 +16,5 @@ npm start       # run locally via SAM
 ## Infrastructure
 
 Deployed via AWS SAM. See `template.yaml` for resource definitions.
-See `CLAUDE.md` for testing standards and module alias reference.
+See `CLAUDE.md` for testing standards. Module aliases (`@config`, `@data/*`, etc.) are
+defined in `jest.config.ts` and `__tests__/tsconfig.json`.

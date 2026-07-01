@@ -29,7 +29,8 @@ export const updateUser = async (userId: string, input: UserUpdateInput): Promis
 
 export const listFavorites = (userId: string): Promise<string[]> => data.listFavorites(userId)
 
-export const addFavorite = (userId: string, recipeId: string): Promise<void> => data.addFavorite(userId, recipeId)
+export const addFavorite = (userId: string, recipeId: string, now = Date.now): Promise<void> =>
+  data.addFavorite(userId, recipeId, now)
 
 export const removeFavorite = (userId: string, recipeId: string): Promise<void> => data.removeFavorite(userId, recipeId)
 

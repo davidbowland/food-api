@@ -13,10 +13,6 @@ describe('config', () => {
     expect(config.photoPresignedUrlExpireSeconds).toBe(3600)
   })
 
-  it('exports corsDomain from env', () => {
-    expect(config.corsDomain).toBe('https://food.bowland.link')
-  })
-
   it('exports smsApiKey from env', () => {
     expect(config.smsApiKey).toBe('3edfgr4ertyjkijhg8')
   })

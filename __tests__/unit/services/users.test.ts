@@ -1,6 +1,5 @@
 import * as data from '@data/users'
 import { NotFoundError, ValidationError } from '@errors'
-
 import {
   getOrCreateUser,
   updateUser,
@@ -81,8 +80,9 @@ describe('addFavorite', () => {
   })
 
   it('delegates to data layer', async () => {
-    await addFavorite('u-1', 'rec-1')
-    expect(data.addFavorite).toHaveBeenCalledWith('u-1', 'rec-1')
+    const now = () => 1_000_000
+    await addFavorite('u-1', 'rec-1', now)
+    expect(data.addFavorite).toHaveBeenCalledWith('u-1', 'rec-1', now)
   })
 })
 

@@ -125,8 +125,7 @@ export const upsertShare = async (
 ): Promise<ShoppingListRecord> => {
   const list = await data.getShoppingList(listId)
   if (list.ownerUserId !== ownerId) throw new ForbiddenError('Access denied')
-  const shares = list.shares.filter((s) => s.userId !== targetUserId)
-  shares.push({ userId: targetUserId, role })
+  const shares = [...list.shares.filter((s) => s.userId !== targetUserId), { userId: targetUserId, role }]
   const updated: ShoppingListRecord = { ...list, shares }
   await Promise.all([data.putShoppingList(updated), data.putSharedListIndex(targetUserId, listId)])
   return updated

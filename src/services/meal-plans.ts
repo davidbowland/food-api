@@ -78,8 +78,7 @@ export const upsertShare = async (
 ): Promise<MealPlanRecord> => {
   const plan = await data.getMealPlan(planId)
   if (plan.ownerUserId !== ownerId) throw new ForbiddenError('Access denied')
-  const shares = plan.shares.filter((s) => s.userId !== targetUserId)
-  shares.push({ userId: targetUserId, role })
+  const shares = [...plan.shares.filter((s) => s.userId !== targetUserId), { userId: targetUserId, role }]
   const updated: MealPlanRecord = { ...plan, shares }
   await Promise.all([data.putMealPlan(updated), data.putSharedPlanIndex(targetUserId, planId)])
   return updated

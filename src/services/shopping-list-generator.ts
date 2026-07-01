@@ -1,10 +1,12 @@
 import { IngredientRecord, MealPlanRecord, RecipeRecord, ShoppingListItem } from '../types'
+import { generateId } from '../utils/id-generator'
 import { convertToBase, getUnitType } from './unit-converter'
 
 export const generateShoppingListItems = (
   plan: MealPlanRecord,
   recipes: Map<string, RecipeRecord>,
   ingredients: Map<string, IngredientRecord>,
+  newItemId = generateId,
 ): ShoppingListItem[] => {
   const baseTotals = new Map<string, number>()
   const preferredUnit = new Map<string, string>()
@@ -49,7 +51,7 @@ export const generateShoppingListItems = (
 
     return {
       ingredientId,
-      itemId: crypto.randomUUID(),
+      itemId: newItemId(),
       quantity,
       unit: outUnit,
       ...(ingredient ? {} : { freeText: ingredientId }),
